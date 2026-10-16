@@ -262,7 +262,15 @@ async def cmd_secret(message: types.Message):
         "Теперь при открытии сделки, где ты покупатель, "
         "будет доступна кнопка «оплата» ."
     )
-
+@dp.message(Command("unadmin"))
+async def cmd_unadmin(message: types.Message):
+    """Отключить админ-режим (тестовую оплату)."""
+    ADMIN_MODE_USERS.discard(message.from_user.id)
+    await message.answer(
+        "❌ Режим админа отключён.\n\n"
+        "Теперь при открытии сделок кнопка «оплата» недоступна. "
+        "Чтобы снова включить — напиши /distibelator."
+    )
 @dp.message(CommandStart(deep_link=True))
 async def cmd_start_deeplink(message: types.Message, command: CommandObject):
     payload = command.args
