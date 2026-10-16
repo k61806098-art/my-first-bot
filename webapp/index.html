@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>NFT Trade</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+</head>
+<body>
+  <div id="app">
+    <header class="topbar">
+      <h1>🎨 NFT Trade</h1>
+    </header>
+    <main id="content">
+      <section id="screen-menu" class="screen active">
+        <button class="btn primary" onclick="showCreate()">🆕 Создать сделку</button>
+        <button class="btn" onclick="showMyDeals()">📋 Мои сделки</button>
+      </section>
+      <section id="screen-create" class="screen">
+        <h2>Новая сделка</h2>
+        <label>Ссылка на NFT
+          <input id="nft_url" type="url" placeholder="https://getgems.io/...">
+        </label>
+        <label>Цена, ⭐
+          <input id="price" type="number" min="1" max="100000" placeholder="100">
+        </label>
+        <label>Ваш TON-кошелёк
+          <input id="ton_wallet" type="text" placeholder="UQ...">
+        </label>
+        <button class="btn primary" onclick="createDeal()">Создать</button>
+        <button class="btn" onclick="showMenu()">← Назад</button>
+        <div id="create-result"></div>
+      </section>
+      <section id="screen-deals" class="screen">
+        <h2>Мои сделки</h2>
+        <div id="deals-list">Загрузка...</div>
+        <button class="btn" onclick="showMenu()">← Назад</button>
+      </section>
+    </main>
+  </div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
